@@ -13,7 +13,7 @@ enum Theme {
     static let mute = UIColor(white: 0.42, alpha: 1)
 }
 
-struct StreamCfg { var w: Int; var h: Int; var hevc: Bool; var mode: Int; var cs: CGFloat; var fps: Int }
+struct StreamCfg { var w: Int; var h: Int; var hevc: Bool; var ten: Bool; var mode: Int; var cs: CGFloat; var fps: Int }
 
 final class StageController: UIViewController {
     let link = PaneLink()
@@ -142,7 +142,11 @@ final class StageController: UIViewController {
         let (w, h) = physRes()
         sentWH = "\(w)x\(h)"
         let hevc = VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
-        link.send(json: ["t": "hello", "w": w, "h": h, "hz": maxHz(), "avc": 1, "hevc": hevc ? 1 : 0,
+        let ud = UserDefaults.standard
+        var devId = ud.string(forKey: "deviceId") ?? ""
+        if devId.isEmpty { devId = UUID().uuidString; ud.set(devId, forKey: "deviceId") }   // laptop remembers settings per device
+        let devName = UIDevice.current.model + " (app)"
+        link.send(json: ["t": "hello", "id": devId, "name": devName, "w": w, "h": h, "hz": maxHz(), "avc": 1, "hevc": hevc ? 1 : 0, "hevc10": hevc ? 1 : 0,
                          "dpr": Double(view.window?.windowScene?.screen.nativeScale ?? 2), "app": 1])
     }
 
@@ -221,7 +225,8 @@ final class StageController: UIViewController {
         guard let o = try? JSONSerialization.jsonObject(with: Data(p)) as? [String: Any], let t = o["t"] as? String else { return }
         func num(_ k: String) -> Double { (o[k] as? NSNumber)?.doubleValue ?? 0 }
         if t == "cfg" {
-            let c = StreamCfg(w: Int(num("w")), h: Int(num("h")), hevc: (o["codec"] as? String ?? "").hasPrefix("hvc"),
+            let codec = o["codec"] as? String ?? ""
+            let c = StreamCfg(w: Int(num("w")), h: Int(num("h")), hevc: codec.hasPrefix("hvc"), ten: codec.hasPrefix("hvc1.2"),
                               mode: Int(num("mode")), cs: CGFloat(num("cs") > 0 ? num("cs") : 1), fps: Int(num("fps")))
             annexB.reset(hevc: c.hevc); needKey = true; vIn = 0; mode = c.mode
             DispatchQueue.main.async { self.setup(c) }
@@ -240,7 +245,7 @@ final class StageController: UIViewController {
         surface.reset(w: c.w, h: c.h, opaque: c.mode == 2)
         hello.isHidden = true
         menu.streamText = "\(c.w) × \(c.h) @ \(c.fps)"
-        menu.codecText = (c.hevc ? "HEVC" : "H.264") + " · " + ["Video", "Hybrid", "Tiles"][max(0, min(2, c.mode))]
+        menu.codecText = (c.hevc ? "HEVC" : "H.264") + (c.ten ? " 10-bit" : "") + " · " + ["Video", "Hybrid", "Tiles"][max(0, min(2, c.mode))]
         layoutStage()
     }
 
