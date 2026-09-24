@@ -1,0 +1,15 @@
+name: Pane iPad app
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  ipa:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build unsigned IPA
+        run: bash ios/build-ipa.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Pane-ipa
+          path: ios/build/Pane.ipa
